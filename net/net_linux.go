@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,34 +54,9 @@ var versionOnce sync.Once
 func canUseNetlink() bool {
 	if netlinkFlag == NotInit {
 		versionOnce.Do(func() {
-			cmd := exec.Command("uname", "-r")
-			out := &bytes.Buffer{}
-			cmd.Stdout = out
-			cmd.Stderr = os.Stderr
-			e := cmd.Run()
-			if e != nil {
+			major, minor := common.KernelVersion()
+			if major < 3 || (major == 3 && minor < 3) {
 				netlinkFlag = Disable
-				return
-			}
-			res := strings.Split(out.String(), ".")
-			if len(res) == 0 {
-				netlinkFlag = Disable
-				return
-			}
-			majorV, _ := strconv.Atoi(res[0])
-			if majorV < 3 {
-				netlinkFlag = Disable
-			} else if majorV == 3 {
-				if len(res) < 1 {
-					netlinkFlag = Disable
-				} else {
-					minorV, _ := strconv.Atoi(res[1])
-					if minorV < 3 {
-						netlinkFlag = Disable
-					} else {
-						netlinkFlag = Enable
-					}
-				}
 			} else {
 				netlinkFlag = Enable
 			}

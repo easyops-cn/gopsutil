@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -289,4 +290,40 @@ func trimQuotes(s string) string {
 		}
 	}
 	return s
+}
+
+// KernelVersion get linux kernel version base uname syscall
+func KernelVersion() (major int, minor int) {
+	var uname syscall.Utsname
+	if err := syscall.Uname(&uname); err != nil {
+		return
+	}
+
+	rl := uname.Release
+	var values [2]int
+	vi := 0
+	value := 0
+	for _, c := range rl {
+		if '0' <= c && c <= '9' {
+			value = (value * 10) + int(c-'0')
+		} else {
+			// Note that we're assuming N.N.N here.  If we see anything else we are likely to
+			// mis-parse it.
+			values[vi] = value
+			vi++
+			if vi >= len(values) {
+				break
+			}
+			value = 0
+		}
+	}
+	switch vi {
+	case 0:
+		return 0, 0
+	case 1:
+		return values[0], 0
+	case 2:
+		return values[0], values[1]
+	}
+	return
 }
