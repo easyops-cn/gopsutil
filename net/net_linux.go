@@ -13,8 +13,10 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/shirou/gopsutil/v3/internal/common"
@@ -39,6 +41,35 @@ const ( // Conntrack Column numbers
 	CT_EXPEctDELETE
 	ctSEARCH_RESTART
 )
+
+var kernelVersion = -1
+var versionOnce sync.Once
+
+func canUseNetlink() bool {
+	if kernelVersion == -1 {
+		versionOnce.Do(func() {
+			cmd := exec.Command("uname", "-r")
+			out := &bytes.Buffer{}
+			cmd.Stdout = out
+			cmd.Stderr = os.Stderr
+			e := cmd.Run()
+			if e != nil {
+				kernelVersion = 2
+				return
+			}
+			res := strings.Split(out.String(), ".")
+			if len(res) > 0 {
+				version, err := strconv.Atoi(res[0])
+				if err != nil {
+					kernelVersion = 2
+					return
+				}
+				kernelVersion = version
+			}
+		})
+	}
+	return kernelVersion > 2
+}
 
 // NetIOCounters returns network I/O statistics for every network
 // interface installed on the system.  If pernic argument is false,
@@ -321,33 +352,38 @@ var tcpStatuses = map[string]string{
 }
 
 type netConnectionKindType struct {
-	family   uint32
-	sockType uint32
-	filename string
+	family       uint32
+	sockType     uint32
+	netlinkProto uint8
+	filename     string
 }
 
 var kindTCP4 = netConnectionKindType{
-	family:   syscall.AF_INET,
-	sockType: syscall.SOCK_STREAM,
-	filename: "tcp",
+	family:       syscall.AF_INET,
+	sockType:     syscall.SOCK_STREAM,
+	netlinkProto: syscall.IPPROTO_TCP,
+	filename:     "tcp",
 }
 
 var kindTCP6 = netConnectionKindType{
-	family:   syscall.AF_INET6,
-	sockType: syscall.SOCK_STREAM,
-	filename: "tcp6",
+	family:       syscall.AF_INET6,
+	sockType:     syscall.SOCK_STREAM,
+	netlinkProto: syscall.IPPROTO_TCP,
+	filename:     "tcp6",
 }
 
 var kindUDP4 = netConnectionKindType{
-	family:   syscall.AF_INET,
-	sockType: syscall.SOCK_DGRAM,
-	filename: "udp",
+	family:       syscall.AF_INET,
+	sockType:     syscall.SOCK_DGRAM,
+	netlinkProto: syscall.IPPROTO_UDP,
+	filename:     "udp",
 }
 
 var kindUDP6 = netConnectionKindType{
-	family:   syscall.AF_INET6,
-	sockType: syscall.SOCK_DGRAM,
-	filename: "udp6",
+	family:       syscall.AF_INET6,
+	sockType:     syscall.SOCK_DGRAM,
+	netlinkProto: syscall.IPPROTO_UDP,
+	filename:     "udp6",
 }
 
 var kindUNIX = netConnectionKindType{
@@ -455,26 +491,12 @@ func ConnectionsPidMaxWithoutUidsWithContext(ctx context.Context, kind string, p
 }
 
 func connectionsPidMaxWithoutUidsWithContext(ctx context.Context, kind string, pid int32, max int, skipUids bool) ([]ConnectionStat, error) {
-	tmap, ok := netConnectionKindMap[kind]
-	if !ok {
-		return nil, fmt.Errorf("invalid kind, %s", kind)
-	}
-	root := common.HostProc()
-	var err error
-	var inodes map[string][]inodeMap
-	if pid == 0 {
-		inodes, err = getProcInodesAllWithContext(ctx, root, max)
+	if canUseNetlink() {
+		return connectionsPidMaxWithoutUidsWithContextByNetlink(ctx, kind, pid, max, skipUids)
 	} else {
-		inodes, err = getProcInodes(root, pid, max)
-		if len(inodes) == 0 {
-			// no connection for the pid
-			return []ConnectionStat{}, nil
-		}
+		return connectionsPidMaxWithoutUidsWithContextByDefault(ctx, kind, pid, max, skipUids)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("cound not get pid(s), %d: %w", pid, err)
-	}
-	return statsFromInodesWithContext(ctx, root, pid, tmap, inodes, skipUids)
+
 }
 
 func statsFromInodes(root string, pid int32, tmap []netConnectionKindType, inodes map[string][]inodeMap, skipUids bool) ([]ConnectionStat, error) {
