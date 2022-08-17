@@ -15,7 +15,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/shirou/gopsutil/v3/internal/common"
@@ -41,28 +40,14 @@ const ( // Conntrack Column numbers
 	ctSEARCH_RESTART
 )
 
-const (
-	NotInit = iota - 1
-	Disable
-	Enable
-)
-
-var netlinkFlag = NotInit
-var versionOnce sync.Once
-
 //canUseNetlink netlink support Linux 3.3 or later only (inet_diag_req_v2 is required)
 func canUseNetlink() bool {
-	if netlinkFlag == NotInit {
-		versionOnce.Do(func() {
-			major, minor := common.KernelVersion()
-			if major < 3 || (major == 3 && minor < 3) {
-				netlinkFlag = Disable
-			} else {
-				netlinkFlag = Enable
-			}
-		})
+	s, err := syscall.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW, syscall.NETLINK_INET_DIAG)
+	if err != nil {
+		return false
 	}
-	return netlinkFlag == Enable
+	defer syscall.Close(s)
+	return true
 }
 
 // NetIOCounters returns network I/O statistics for every network
