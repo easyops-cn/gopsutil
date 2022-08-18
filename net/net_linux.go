@@ -15,7 +15,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/shirou/gopsutil/v3/internal/common"
@@ -40,30 +39,6 @@ const ( // Conntrack Column numbers
 	CT_EXPEctDELETE
 	ctSEARCH_RESTART
 )
-
-const (
-	NotInit = iota - 1
-	Disable
-	Enable
-)
-
-var netlinkFlag = NotInit
-var versionOnce sync.Once
-
-//canUseNetlink netlink support Linux 3.3 or later only (inet_diag_req_v2 is required)
-func canUseNetlink() bool {
-	if netlinkFlag == NotInit {
-		versionOnce.Do(func() {
-			major, minor := common.KernelVersion()
-			if major < 3 || (major == 3 && minor < 3) {
-				netlinkFlag = Disable
-			} else {
-				netlinkFlag = Enable
-			}
-		})
-	}
-	return netlinkFlag == Enable
-}
 
 // NetIOCounters returns network I/O statistics for every network
 // interface installed on the system.  If pernic argument is false,
@@ -485,11 +460,11 @@ func ConnectionsPidMaxWithoutUidsWithContext(ctx context.Context, kind string, p
 }
 
 func connectionsPidMaxWithoutUidsWithContext(ctx context.Context, kind string, pid int32, max int, skipUids bool) ([]ConnectionStat, error) {
-	if canUseNetlink() {
-		return connectionsPidMaxWithoutUidsWithContextByNetlink(ctx, kind, pid, max, skipUids)
-	} else {
+	conByNetlink, err := connectionsPidMaxWithoutUidsWithContextByNetlink(ctx, kind, pid, max, skipUids)
+	if err != nil {
 		return connectionsPidMaxWithoutUidsWithContextByDefault(ctx, kind, pid, max, skipUids)
 	}
+	return conByNetlink, nil
 
 }
 

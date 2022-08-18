@@ -40,18 +40,24 @@ func connectionsPidMaxWithoutUidsWithContextByNetlink(ctx context.Context, kind 
 func connectionsNetLink(kinds []netConnectionKindType, inodes map[string][]inodeMap) ([]ConnectionStat, error) {
 	wait := &sync.WaitGroup{}
 	reply := make([][]ConnectionStat, len(kinds))
+	errSlice := make([]error, len(kinds))
 	var retErrr error
 
 	for i, kind := range kinds {
 		wait.Add(1)
 		if kind.family == syscall.AF_UNIX {
-			go getUnixConnections(wait, i, reply)
+			go getUnixConnections(wait, i, reply, errSlice)
 		} else {
-			go getInetConnections(wait, i, kind, reply)
+			go getInetConnections(wait, i, kind, reply, errSlice)
 		}
 	}
 
 	wait.Wait()
+	for _, err := range errSlice {
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	ret := make([]ConnectionStat, 0)
 	for i := range kinds {
@@ -66,15 +72,14 @@ func connectionsNetLink(kinds []netConnectionKindType, inodes map[string][]inode
 			}
 		}
 	}
-
 	return ret, retErrr
 }
 
-func getInetConnections(wait *sync.WaitGroup, i int, k netConnectionKindType, reply [][]ConnectionStat) {
+func getInetConnections(wait *sync.WaitGroup, i int, k netConnectionKindType, reply [][]ConnectionStat, errSlice []error) {
 	defer wait.Done()
 	msgs, err := netlink.InetConnections(uint8(k.family), k.netlinkProto)
 	if err != nil {
-		// just ignored
+		errSlice[i] = err
 		return
 	}
 	t := make([]ConnectionStat, len(msgs))
@@ -94,11 +99,11 @@ func getInetConnections(wait *sync.WaitGroup, i int, k netConnectionKindType, re
 	reply[i] = t
 }
 
-func getUnixConnections(wait *sync.WaitGroup, i int, reply [][]ConnectionStat) {
+func getUnixConnections(wait *sync.WaitGroup, i int, reply [][]ConnectionStat, errSlice []error) {
 	defer wait.Done()
 	msgs, err := netlink.UnixConnections()
 	if err != nil {
-		// just ignored
+		errSlice[i] = err
 		return
 	}
 	t := make([]ConnectionStat, len(msgs))
