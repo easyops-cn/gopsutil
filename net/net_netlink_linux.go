@@ -6,14 +6,14 @@ package net
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"syscall"
+
 	"github.com/shirou/gopsutil/v3/internal/common"
 	"github.com/shirou/gopsutil/v3/net/netlink"
-	"strconv"
-	"sync"
-	"syscall"
 )
 
-func connectionsPidMaxWithoutUidsWithContextByNetlink(ctx context.Context, kind string, pid int32, max int, skipUids bool) ([]ConnectionStat, error) {
+func connectionsPidMaxWithoutUidsWithContextByNetlink(_ context.Context, kind string, pid int32, max int, _ bool) ([]ConnectionStat, error) {
 	tmap, ok := netConnectionKindMap[kind]
 	if !ok {
 		return nil, fmt.Errorf("invalid kind, %s", kind)
@@ -38,21 +38,18 @@ func connectionsPidMaxWithoutUidsWithContextByNetlink(ctx context.Context, kind 
 }
 
 func connectionsNetLink(kinds []netConnectionKindType, inodes map[string][]inodeMap) ([]ConnectionStat, error) {
-	wait := &sync.WaitGroup{}
 	reply := make([][]ConnectionStat, len(kinds))
 	errSlice := make([]error, len(kinds))
 	var retErrr error
 
 	for i, kind := range kinds {
-		wait.Add(1)
 		if kind.family == syscall.AF_UNIX {
-			go getUnixConnections(wait, i, reply, errSlice)
+			getUnixConnections(i, reply, errSlice)
 		} else {
-			go getInetConnections(wait, i, kind, reply, errSlice)
+			getInetConnections(i, kind, reply, errSlice)
 		}
 	}
 
-	wait.Wait()
 	for _, err := range errSlice {
 		if err != nil {
 			return nil, err
@@ -75,8 +72,7 @@ func connectionsNetLink(kinds []netConnectionKindType, inodes map[string][]inode
 	return ret, retErrr
 }
 
-func getInetConnections(wait *sync.WaitGroup, i int, k netConnectionKindType, reply [][]ConnectionStat, errSlice []error) {
-	defer wait.Done()
+func getInetConnections(i int, k netConnectionKindType, reply [][]ConnectionStat, errSlice []error) {
 	msgs, err := netlink.InetConnections(uint8(k.family), k.netlinkProto)
 	if err != nil {
 		errSlice[i] = err
@@ -99,8 +95,7 @@ func getInetConnections(wait *sync.WaitGroup, i int, k netConnectionKindType, re
 	reply[i] = t
 }
 
-func getUnixConnections(wait *sync.WaitGroup, i int, reply [][]ConnectionStat, errSlice []error) {
-	defer wait.Done()
+func getUnixConnections(i int, reply [][]ConnectionStat, errSlice []error) {
 	msgs, err := netlink.UnixConnections()
 	if err != nil {
 		errSlice[i] = err
