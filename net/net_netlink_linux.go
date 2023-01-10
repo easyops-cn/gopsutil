@@ -69,6 +69,8 @@ func connectionsNetLink(kinds []netConnectionKindType, inodes map[string][]inode
 					cs.Fd = is.fd
 					ret = append(ret, cs)
 				}
+			} else {
+				ret = append(ret, cs)
 			}
 		}
 	}
