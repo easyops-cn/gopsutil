@@ -1,15 +1,29 @@
 on: [push, pull_request]
 name: Test
+permissions:
+  contents: read
+
 jobs:
+  go-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.versions.outputs.value }}
+    steps:
+      - id: versions
+        run: |
+          versions=$(curl -s 'https://go.dev/dl/?mode=json' | jq -c 'map(.version[2:])')
+          echo "::set-output name=value::${versions}"
   test_v3_module:
+    needs: go-versions
     strategy:
+      fail-fast: false
       matrix:
-        go-version: [1.16.x, 1.17.x]
-        os: [ubuntu-20.04, ubuntu-18.04, windows-2019, windows-2016, macOS-10.15, macos-11]
+        go-version: ${{fromJson(needs.go-versions.outputs.versions)}}
+        os: [ubuntu-20.04, ubuntu-18.04, windows-2019, macos-11]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Install Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go-version }}
     - name: Checkout code
@@ -19,7 +33,7 @@ jobs:
         echo "::set-output name=cache::$(go env GOCACHE)"
         echo "::set-output name=mod-cache::$(go env GOMODCACHE)"
     - name: Cache go modules
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: |
           ${{ steps.go-env.outputs.cache }}
