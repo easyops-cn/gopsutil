@@ -116,6 +116,44 @@ func BootTimeWithContext(ctx context.Context) (uint64, error) {
 	return 0, fmt.Errorf("could not find btime")
 }
 
+// BootTimeForProcessStartTime lxc环境通过uptime得到的系统启动时间计算进程启动时间的结果有问题，改为用stat得到系统启动时间
+func BootTimeForProcessStartTime() (uint64, error) {
+	statFile := "stat"
+	filename := HostProc(statFile)
+	lines, err := ReadLines(filename)
+	if os.IsPermission(err) {
+		var info syscall.Sysinfo_t
+		err := syscall.Sysinfo(&info)
+		if err != nil {
+			return 0, err
+		}
+
+		currentTime := time.Now().UnixNano() / int64(time.Second)
+		t := currentTime - int64(info.Uptime)
+		return uint64(t), nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "btime") {
+			f := strings.Fields(line)
+			if len(f) != 2 {
+				return 0, fmt.Errorf("wrong btime format")
+			}
+			b, err := strconv.ParseInt(f[1], 10, 64)
+			if err != nil {
+				return 0, err
+			}
+			t := uint64(b)
+			return t, nil
+		}
+	}
+
+	return 0, fmt.Errorf("could not find btime")
+}
+
 func Virtualization() (string, string, error) {
 	return VirtualizationWithContext(context.Background())
 }
