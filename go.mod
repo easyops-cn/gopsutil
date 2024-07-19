@@ -10,6 +10,7 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/tklauser/go-sysconf v0.3.11
 	github.com/yusufpapurcu/wmi v1.2.2
+	go.easyops.local/slog v0.0.0-20240218012623-b8d04ff912aa
 	golang.org/x/sys v0.6.0
 )
 
