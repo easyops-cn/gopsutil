@@ -12,6 +12,7 @@ package netlink
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/shirou/gopsutil/v3/net/sleepconfig"
 	"hash/fnv"
 	"io"
 	"net"
@@ -162,8 +163,8 @@ done:
 			return nil, err
 		}
 
-		for _, m := range msgs {
-
+		for i, m := range msgs {
+			sleepconfig.TimeSleep(i)
 			if m.Header.Type == syscall.NLMSG_DONE {
 				break done
 			}
