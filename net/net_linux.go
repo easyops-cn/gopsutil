@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/shirou/gopsutil/v3/net/sleepconfig"
 	"io"
 	"io/ioutil"
 	"net"
@@ -672,7 +673,7 @@ func getProcInodesAllWithContext(ctx context.Context, root string, max int) (map
 	ret := make(map[string][]inodeMap)
 
 	for i, pid := range pids {
-		TimeSleep(i)
+		sleepconfig.TimeSleep(i)
 		t, err := getProcInodes(root, pid, max)
 		if err != nil {
 			// skip if permission error or no longer exists

@@ -6,6 +6,7 @@ package net
 import (
 	"context"
 	"fmt"
+	"github.com/shirou/gopsutil/v3/net/sleepconfig"
 	"net"
 	"os"
 	"syscall"
@@ -413,8 +414,7 @@ func getTCPConnections(family uint32) ([]ConnectionStat, error) {
 		return nil, fmt.Errorf("faimly must be required")
 	}
 
-	for i := 0; ; i++ {
-		TimeSleep(i)
+	for {
 		switch family {
 		case kindTCP4.family:
 			if len(buf) > 0 {
@@ -465,7 +465,7 @@ func getTCPConnections(family uint32) ([]ConnectionStat, error) {
 	}
 
 	for i := 0; i < length; i++ {
-		TimeSleep(i)
+		sleepconfig.TimeSleep(i)
 		switch family {
 		case kindTCP4.family:
 			mibs := (*mibTCPRowOwnerPid)(unsafe.Pointer(&buf[index]))
