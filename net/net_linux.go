@@ -671,7 +671,8 @@ func getProcInodesAllWithContext(ctx context.Context, root string, max int) (map
 	}
 	ret := make(map[string][]inodeMap)
 
-	for _, pid := range pids {
+	for i, pid := range pids {
+		TimeSleep(i)
 		t, err := getProcInodes(root, pid, max)
 		if err != nil {
 			// skip if permission error or no longer exists
