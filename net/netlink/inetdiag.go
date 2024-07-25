@@ -5,8 +5,8 @@
 // https://github.com/elastic/gosigar/tree/master/sys/linux
 //
 // modified point:
-//  - delete NewInetDiagReq. gopsutil only support v2.
-//  - change connection state strings.
+//   - delete NewInetDiagReq. gopsutil only support v2.
+//   - change connection state strings.
 package netlink
 
 import (
@@ -164,7 +164,7 @@ done:
 		}
 
 		for i, m := range msgs {
-			sleepconfig.TimeSleep(i)
+			sleepconfig.TimeSleep(i, len(msgs))
 			if m.Header.Type == syscall.NLMSG_DONE {
 				break done
 			}

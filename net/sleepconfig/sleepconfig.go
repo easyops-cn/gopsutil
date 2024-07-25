@@ -23,7 +23,7 @@ func InitSleepConfig(ms int, loop int, logger slog.Logger) {
 	config.logger = logger
 }
 
-func TimeSleep(i int) {
+func TimeSleep(i int, total int) {
 	if !config.enable {
 		return
 	}
@@ -33,7 +33,9 @@ func TimeSleep(i int) {
 	}
 	ms := config.sleepMs.Load()
 	if ms != 0 {
-		config.logger.Infof("time sleep, sleep duration: %d, current loop count: %d", ms, i)
+		if (i+1) == j || (i+1) == (total/j)*j || (i+1)%10000 == 0 {
+			config.logger.Infof("time sleep, sleep duration: %d, current loop count: %d", ms, i)
+		}
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 	}
 }
