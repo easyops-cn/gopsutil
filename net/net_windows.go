@@ -465,7 +465,7 @@ func getTCPConnections(family uint32) ([]ConnectionStat, error) {
 	}
 
 	for i := 0; i < length; i++ {
-		sleepconfig.TimeSleep(i)
+		sleepconfig.TimeSleep(i, length)
 		switch family {
 		case kindTCP4.family:
 			mibs := (*mibTCPRowOwnerPid)(unsafe.Pointer(&buf[index]))
