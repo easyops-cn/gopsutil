@@ -6,14 +6,17 @@ package net
 import (
 	"context"
 	"fmt"
-	"github.com/shirou/gopsutil/v3/net/sleepconfig"
 	"net"
 	"os"
+	"strconv"
 	"syscall"
 	"unsafe"
 
-	"github.com/shirou/gopsutil/v3/internal/common"
+	"github.com/shirou/gopsutil/v3/net/sleepconfig"
+
 	"golang.org/x/sys/windows"
+
+	"github.com/shirou/gopsutil/v3/internal/common"
 )
 
 var (
@@ -21,7 +24,14 @@ var (
 	procGetExtendedTCPTable = modiphlpapi.NewProc("GetExtendedTcpTable")
 	procGetExtendedUDPTable = modiphlpapi.NewProc("GetExtendedUdpTable")
 	procGetIfEntry2         = modiphlpapi.NewProc("GetIfEntry2")
+	ipSegmentTable          [256]string
 )
+
+func init() {
+	for i := 0; i < 256; i++ {
+		ipSegmentTable[i] = strconv.Itoa(i)
+	}
+}
 
 const (
 	TCPTableBasicListener = iota
@@ -644,11 +654,11 @@ func (m *mibTCPRowOwnerPid) convertToConnectionStat() ConnectionStat {
 		Family: kindTCP4.family,
 		Type:   kindTCP4.sockType,
 		Laddr: Addr{
-			IP:   parseIPv4HexString(m.DwLocalAddr),
+			IP:   parseIPv4Uint32Direct(m.DwLocalAddr),
 			Port: uint32(decodePort(m.DwLocalPort)),
 		},
 		Raddr: Addr{
-			IP:   parseIPv4HexString(m.DwRemoteAddr),
+			IP:   parseIPv4Uint32Direct(m.DwRemoteAddr),
 			Port: uint32(decodePort(m.DwRemotePort)),
 		},
 		Pid:    int32(m.DwOwningPid),
@@ -716,7 +726,7 @@ func (m *mibUDPRowOwnerPid) convertToConnectionStat() ConnectionStat {
 		Family: kindUDP4.family,
 		Type:   kindUDP4.sockType,
 		Laddr: Addr{
-			IP:   parseIPv4HexString(m.DwLocalAddr),
+			IP:   parseIPv4Uint32Direct(m.DwLocalAddr),
 			Port: uint32(decodePort(m.DwLocalPort)),
 		},
 		Pid: int32(m.DwOwningPid),
@@ -767,6 +777,20 @@ func decodePort(port uint32) uint16 {
 
 func parseIPv4HexString(addr uint32) string {
 	return fmt.Sprintf("%d.%d.%d.%d", addr&255, addr>>8&255, addr>>16&255, addr>>24&255)
+}
+
+func parseIPv4Uint32Direct(addr uint32) string {
+	b1 := byte(addr)
+	b2 := byte(addr >> 8)
+	b3 := byte(addr >> 16)
+	b4 := byte(addr >> 24)
+
+	s1 := ipSegmentTable[b4]
+	s2 := ipSegmentTable[b3]
+	s3 := ipSegmentTable[b2]
+	s4 := ipSegmentTable[b1]
+
+	return s1 + "." + s2 + "." + s3 + "." + s4
 }
 
 func parseIPv6HexString(addr [16]byte) string {
